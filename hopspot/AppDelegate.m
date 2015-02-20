@@ -7,12 +7,38 @@
 //
 
 #import "AppDelegate.h"
+#import "SRWebSocket.h"
+#import "FeedTableViewController.h"
+#import <GoogleMaps/GoogleMaps.h>
 
-@implementation AppDelegate
+@interface TCMessage : NSObject
+
+
+- (id)initWithMessage:(NSString *)message fromMe:(BOOL)fromMe;
+
+@property (nonatomic, retain, readonly) NSString *message;
+@property (nonatomic, readonly)  BOOL fromMe;
+
+@end
+
+@interface AppDelegate () <SRWebSocketDelegate, UITextViewDelegate>
+
+@end
+
+@implementation AppDelegate {
+    
+    SRWebSocket *_webSocket;
+    NSMutableArray *_messages;
+    NSString *string;
+    NSMutableArray *_posts;
+}
+
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
     // Override point for customization after application launch.
+    [GMSServices provideAPIKey:@"AIzaSyBMluOQpkdmfUbZC5JsjgubbwJYpSzJ46c"];
+    [self _reconnect];
     return YES;
 }
 							
@@ -43,4 +69,86 @@
     // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
 }
 
+- (void)_reconnect;
+{
+    _webSocket.delegate = nil;
+    [_webSocket close];
+    
+    _webSocket = [[SRWebSocket alloc] initWithURLRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"ws://192.168.1.141:160/chat"]]];
+    _webSocket.delegate = self;
+    [_webSocket open];
+    //[self performSelector:@selector(sendMessage) withObject:nil afterDelay:5];
+}
+
+- (void)reconnect:(id)sender;
+{
+    [self _reconnect];
+}
+
+- (void) sendMessage:(NSString*) message;
+{
+    [_webSocket send:message];
+}
+
+- (void) sendMessageDefault;
+{
+    [_webSocket send:@"sent from post view"];
+}
+
+- (void)webSocket:(SRWebSocket *)webSocket didReceiveMessage:(id)message;
+{
+    NSLog(@"Received \"%@\"", message);
+    [_messages addObject:[[TCMessage alloc] initWithMessage:message fromMe:NO]];
+    
+    NSArray *decodelist = [message componentsSeparatedByString:@">:>"];
+    NSString *requestType = [decodelist objectAtIndex:0];
+        
+    if ([requestType isEqualToString:@"regionFeed"])
+    {
+        [self.feedViewController fillFeed:decodelist];
+    }
+    
+    if([requestType isEqualToString:@"hopSpots"])
+    {
+        [self.navigateViewController fillNavigate:decodelist];
+    }
+    
+    if([requestType isEqualToString:@"hopSpotFeed"])
+    {
+        [self.navigateViewController fillHopSpotNav:decodelist];
+    }
+    
+    if([requestType isEqualToString:@"HopSpotIDs"])
+    {
+    
+    }
+    if([requestType isEqualToString:@"HopSpotNames"])
+    {
+    
+    }
+    if([requestType isEqualToString:@"CircleMap"])
+    {
+    
+    }
+}
+
 @end
+
+@implementation TCMessage
+
+@synthesize message = _message;
+@synthesize fromMe = _fromMe;
+
+- (id)initWithMessage:(NSString *)message fromMe:(BOOL)fromMe;
+{
+    self = [super init];
+    if (self) {
+        _fromMe = fromMe;
+        _message = message;
+    }
+    
+    return self;
+}
+
+@end
+
